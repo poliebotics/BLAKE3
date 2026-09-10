@@ -811,13 +811,13 @@ const fn test_hash_const_conversions() {
 
 #[test]
 fn test_block_buffer_alignment() {
-    // These buffers must stay 64-byte-aligned so that wide vector stores into
-    // them (e.g. from memcpy) can store-to-load forward regardless of stack
-    // layout; see the comment on OutBlock/ChunkBuf in lib.rs.
-    assert_eq!(64, core::mem::align_of::<crate::ChunkBuf>());
-    assert_eq!(64, core::mem::align_of::<crate::OutBlock>());
-    assert_eq!(0, core::mem::offset_of!(crate::ChunkBuf, 0));
-    assert_eq!(0, core::mem::offset_of!(crate::OutBlock, 0));
+    // ChunkState.buf and Output.block are Aligned64 so that wide vector stores
+    // into them (e.g. from memcpy) can store-to-load forward regardless of
+    // stack layout. See the comment on Aligned64 in lib.rs, the measurements in
+    // https://github.com/zooko/bench-hashes/issues/2, and the before/after
+    // benchmarks in https://github.com/BLAKE3-team/BLAKE3/pull/582.
+    assert_eq!(64, core::mem::align_of::<crate::Aligned64>());
+    assert_eq!(0, core::mem::offset_of!(crate::Aligned64, 0));
 }
 
 #[cfg(feature = "zeroize")]
@@ -833,7 +833,7 @@ fn test_zeroize() {
         chunk_state: crate::ChunkState {
             cv: [42; 8],
             chunk_counter: 42,
-            buf: crate::ChunkBuf([42; 64]),
+            buf: crate::Aligned64([42; 64]),
             buf_len: 42,
             blocks_compressed: 42,
             flags: 42,
@@ -846,7 +846,7 @@ fn test_zeroize() {
     hasher.zeroize();
     assert_eq!(hasher.chunk_state.cv, [0; 8]);
     assert_eq!(hasher.chunk_state.chunk_counter, 0);
-    assert_eq!(hasher.chunk_state.buf.0, [0; 64]);
+    assert_eq!(hasher.chunk_state.buf, [0; 64]);
     assert_eq!(hasher.chunk_state.buf_len, 0);
     assert_eq!(hasher.chunk_state.blocks_compressed, 0);
     assert_eq!(hasher.chunk_state.flags, 0);
@@ -861,7 +861,7 @@ fn test_zeroize() {
     let mut output_reader = crate::OutputReader {
         inner: crate::Output {
             input_chaining_value: [42; 8],
-            block: crate::OutBlock([42; 64]),
+            block: crate::Aligned64([42; 64]),
             counter: 42,
             block_len: 42,
             flags: 42,
@@ -872,7 +872,7 @@ fn test_zeroize() {
 
     output_reader.zeroize();
     assert_eq!(output_reader.inner.input_chaining_value, [0; 8]);
-    assert_eq!(output_reader.inner.block.0, [0; 64]);
+    assert_eq!(output_reader.inner.block, [0; 64]);
     assert_eq!(output_reader.inner.counter, 0);
     assert_eq!(output_reader.inner.block_len, 0);
     assert_eq!(output_reader.inner.flags, 0);
